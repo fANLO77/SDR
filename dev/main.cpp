@@ -94,11 +94,34 @@ int main(void)
     //we transmit a pattern of FFFF FFFF [TS_0]00 [TS_1]00 [TS_2]00 [TS_3]00 [TS_4]00 [TS_5]00 [TS_6]00 [TS_7]00 FFFF FFFF
     //that is a flag (FFFF FFFF) followed by the 64 bit timestamp, split into 8 bytes and packed into the lsb of each of the DAC words.
     //DAC samples are left aligned 12-bits, so each byte is left shifted into place
-    for(size_t i = 0; i < 2; i++)
+    const int16_t AMPLITUDE = 20000;
+    const int PERIOD = 100;   // количество комплексных отсчётов на полный зигзаг
+
+    for (size_t n = 0; n < tx_mtu; n++)
     {
-        tx_buff[0 + i] = 0xffff;
-        // 8 x timestamp words
-        tx_buff[10 + i] = 0xffff;
+        // положение внутри периода: 0 ... PERIOD-1
+        int p = n % PERIOD;
+
+        int16_t value;
+
+        if (p < PERIOD / 2)
+        {
+            // -AMPLITUDE -> +AMPLITUDE
+            value = -AMPLITUDE +
+                    (2 * AMPLITUDE * p) / (PERIOD / 2);
+        }
+        else
+        {
+            // +AMPLITUDE -> -AMPLITUDE
+            value = AMPLITUDE -
+                    (2 * AMPLITUDE * (p - PERIOD / 2)) / (PERIOD / 2);
+        }
+
+        // I
+        tx_buff[2 * n] = value;
+
+        // Q
+        tx_buff[2 * n + 1] = 0;
     }
 
     //activate streams
