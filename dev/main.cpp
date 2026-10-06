@@ -1,218 +1,140 @@
 #include <SoapySDR/Device.h>
 #include <SoapySDR/Formats.h>
-#include <stdio.h> //printf
-#include <stdlib.h> //free
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
-#include <complex.h>
+#include <complex.h> 
 
 int main(void)
 {
-    // Создание сущности устройства
-    // args can be user defined or from the enumeration result
+    printf("Starting Receiver (TXT Mode)\n");
+
     SoapySDRKwargs args = {};
     SoapySDRKwargs_set(&args, "driver", "plutosdr");
+    
     if (1) {
-        SoapySDRKwargs_set(&args, "uri", "usb:");
+        SoapySDRKwargs_set(&args, "uri", "usb:"); 
     } else {
-        SoapySDRKwargs_set(&args, "uri", "ip:192.168.2.1");
+        SoapySDRKwargs_set(&args, "uri", "ip:192.168.2.1"); 
     }
+    
     SoapySDRKwargs_set(&args, "direct", "1");
-    SoapySDRKwargs_set(&args, "timestamp_every", "1920");
-    SoapySDRKwargs_set(&args, "loopback", "0");
+    SoapySDRKwargs_set(&args, "loopback", "0"); 
+
     SoapySDRDevice *sdr = SoapySDRDevice_make(&args);
     SoapySDRKwargs_clear(&args);
 
     if (sdr == NULL)
     {
-        printf("SoapySDRDevice_make fail: %s\n", SoapySDRDevice_lastError());
+        printf("Error: Could not open device. %s\n", SoapySDRDevice_lastError());
         return EXIT_FAILURE;
     }
+    printf("Device opened successfully.\n");
 
-    // Настраиваем устройства RX\TX
-    if (SoapySDRDevice_setSampleRate(sdr, SOAPY_SDR_RX, 0, 1e6) != 0)
-    {
-        printf("setSampleRate rx fail: %s\n", SoapySDRDevice_lastError());
-    }
-    if (SoapySDRDevice_setFrequency(sdr, SOAPY_SDR_RX, 0, 800e6, NULL) != 0)
-    {
-        printf("setFrequency rx fail: %s\n", SoapySDRDevice_lastError());
-    }
-    if (SoapySDRDevice_setSampleRate(sdr, SOAPY_SDR_TX, 0, 1e6) != 0)
-    {
-        printf("setSampleRate tx fail: %s\n", SoapySDRDevice_lastError());
-    }
-    if (SoapySDRDevice_setFrequency(sdr, SOAPY_SDR_TX, 0, 800e6, NULL) != 0)
-    {
-        printf("setFrequency tx fail: %s\n", SoapySDRDevice_lastError());
-    }
-    printf("SoapySDRDevice_getFrequency tx: %lf\n", SoapySDRDevice_getFrequency(sdr, SOAPY_SDR_TX, 0));
-    
-    // Настройка каналов и стримов
-    size_t channels[] = {0} ; // {0} or {0, 1} 
-    // TODO: - с вариантом {0, 1} необходимо разробраться, не работают 2 канала
+    const double SAMPLE_RATE = 1e6;   
+    const double FREQUENCY = 800e6;   
 
+    if (SoapySDRDevice_setSampleRate(sdr, SOAPY_SDR_RX, 0, SAMPLE_RATE) != 0)
+    {
+        printf("Warning: setSampleRate rx fail: %s\n", SoapySDRDevice_lastError());
+    }
+    if (SoapySDRDevice_setFrequency(sdr, SOAPY_SDR_RX, 0, FREQUENCY, NULL) != 0)
+    {
+        printf("Error: setFrequency rx fail: %s\n", SoapySDRDevice_lastError());
+        SoapySDRDevice_unmake(sdr);
+        return EXIT_FAILURE;
+    }
+    printf("RX Configured: Freq=%.3f MHz, SR=%.3f Msps\n", FREQUENCY/1e6, SAMPLE_RATE/1e6);
+
+    size_t channels[] = {0};
     size_t channel_count = sizeof(channels) / sizeof(channels[0]);
+    
+    SoapySDRDevice_setGainMode(sdr, SOAPY_SDR_RX, 0, false); 
+    
+    double gain_val = 40.0; 
+    if(SoapySDRDevice_setGain(sdr, SOAPY_SDR_RX, 0, gain_val) != 0 ){
+        printf("Warning: setGain rx failed: %s\n", SoapySDRDevice_lastError());
+    } else {
+        printf("RX Gain set to %.1f dB\n", gain_val);
+    }
+
     SoapySDRStream *rxStream = SoapySDRDevice_setupStream(sdr, SOAPY_SDR_RX, SOAPY_SDR_CS16, channels, channel_count, NULL);
     if (rxStream == NULL)
     {
-        printf("setupStream rx fail: %s\n", SoapySDRDevice_lastError());
-        SoapySDRDevice_unmake(sdr);
-        return EXIT_FAILURE;
-    }
-    if(SoapySDRDevice_setGain(sdr, SOAPY_SDR_RX, channels[0], 30.0) !=0 ){
-        printf("setGain rx fail: %s\n", SoapySDRDevice_lastError());
-    }
-    if(SoapySDRDevice_setGain(sdr, SOAPY_SDR_TX, channels[0], -40.0) !=0 ){
-        printf("setGain tx fail: %s\n", SoapySDRDevice_lastError());
-    }
-    SoapySDRStream *txStream = SoapySDRDevice_setupStream(sdr, SOAPY_SDR_TX, SOAPY_SDR_CS16, channels, channel_count, NULL);
-    if (txStream == NULL)
-    {
-        printf("setupStream tx fail: %s\n", SoapySDRDevice_lastError());
+        printf("Error: setupStream rx fail: %s\n", SoapySDRDevice_lastError());
         SoapySDRDevice_unmake(sdr);
         return EXIT_FAILURE;
     }
 
-    // Получение MTU (Maximum Transmission Unit), в нашем случае - размер буферов. 
     size_t rx_mtu = SoapySDRDevice_getStreamMTU(sdr, rxStream);
-    size_t tx_mtu = SoapySDRDevice_getStreamMTU(sdr, txStream);
-    printf("MTU - TX: %lu, RX: %lu\n", tx_mtu, rx_mtu);
-    
+    printf("RX MTU: %lu samples per buffer\n", rx_mtu);
 
-    int16_t tx_buff[2*tx_mtu];
-    int16_t rx_buffer[2*rx_mtu];
-    //int16_t *rx_buffer = (int16_t *)malloc(2 * rx_mtu * sizeof(int16_t));
-
-    //заполнение tx_buff значениями сэмплов первые 16 бит - I, вторые 16 бит - Q.
-    for (int i = 0; i < 2 * tx_mtu; i+=2)
-    {
-        tx_buff[i] = 2000 ;
-        tx_buff[i+1] = 2000 ;
+    int16_t *rx_buffer = (int16_t *)malloc(2 * rx_mtu * sizeof(int16_t));
+    if (!rx_buffer) {
+        printf("Memory allocation failed\n");
+        SoapySDRDevice_closeStream(sdr, rxStream);
+        SoapySDRDevice_unmake(sdr);
+        return EXIT_FAILURE;
     }
 
-    //prepare fixed bytes in transmit buffer
-    //we transmit a pattern of FFFF FFFF [TS_0]00 [TS_1]00 [TS_2]00 [TS_3]00 [TS_4]00 [TS_5]00 [TS_6]00 [TS_7]00 FFFF FFFF
-    //that is a flag (FFFF FFFF) followed by the 64 bit timestamp, split into 8 bytes and packed into the lsb of each of the DAC words.
-    //DAC samples are left aligned 12-bits, so each byte is left shifted into place
-    const int16_t AMPLITUDE = 20000;
-    const int PERIOD = 100;   // количество комплексных отсчётов на полный зигзаг
+    SoapySDRDevice_activateStream(sdr, rxStream, 0, 0, 0);
+    printf("Streaming started. Waiting for signal...\n");
 
-    for (size_t n = 0; n < tx_mtu; n++)
-    {
-        // положение внутри периода: 0 ... PERIOD-1
-        int p = n % PERIOD;
-
-        int16_t value;
-
-        if (p < PERIOD / 2)
-        {
-            // -AMPLITUDE -> +AMPLITUDE
-            value = -AMPLITUDE +
-                    (2 * AMPLITUDE * p) / (PERIOD / 2);
-        }
-        else
-        {
-            // +AMPLITUDE -> -AMPLITUDE
-            value = AMPLITUDE -
-                    (2 * AMPLITUDE * (p - PERIOD / 2)) / (PERIOD / 2);
-        }
-
-        // I
-        tx_buff[2 * n] = value;
-
-        // Q
-        tx_buff[2 * n + 1] = 0;
+    FILE *fp_out = fopen("rx_data.txt", "w"); 
+    if (!fp_out) {
+        printf("Error opening file for writing\n");
+        free(rx_buffer);
+        SoapySDRDevice_deactivateStream(sdr, rxStream, 0, 0);
+        SoapySDRDevice_closeStream(sdr, rxStream);
+        SoapySDRDevice_unmake(sdr);
+        return EXIT_FAILURE;
     }
-
-    //activate streams
-    SoapySDRDevice_activateStream(sdr, rxStream, 0, 0, 0); //start streaming
-    SoapySDRDevice_activateStream(sdr, txStream, 0, 0, 0); //start streaming
-
-    //here goes
-    printf("Start test...\n");
-    const long  timeoutUs = 400000; // arbitrarily chosen (взяли из srsRAN)
-
-    long long last_time = 0;
-
-    // Пример по записи сэмплов в фай. Не использовать в Release, операция не быстрая
-    #if 0
-    FILE *file = fopen("txdata.pcm", "a+");
-    fwrite(txp[0], proc->writeBlockSize * sizeof(int), 1, file);
-    fclose(file);
-    #endif
-
-    // Создаем файл для записи сэмплов с rx_buff
-    FILE *file = fopen("txdata.pcm", "w");
     
-    // Количество итерация
-    size_t iteration_count = 10;
-    // Начинается работа с получением и отправкой сэмплов
-    for (size_t buffers_read = 0; buffers_read < iteration_count; buffers_read++)
+    fprintf(fp_out, "# Sample_Index\tI_Value\tQ_Value\n");
+
+    const long timeoutUs = 400000; 
+    int flags;
+    long long timeNs;
+    size_t total_samples = 0;
+    const size_t iteration_limit = 500; 
+    
+    for (size_t i = 0; i < iteration_limit; i++)
     {
-        void *rx_buffs[] = {rx_buffer};
-        int flags;        // flags set by receive operation
-        long long timeNs; //timestamp for receive buffer
-
-        int sr = SoapySDRDevice_readStream(sdr, rxStream, rx_buffs, rx_mtu, &flags, &timeNs, timeoutUs);
-        if (sr < 0)
-        {
-            // Skip read on error (likely timeout)
-            continue;
-        }
-  
-        // Dump info
-        printf("Buffer: %lu - Samples: %i, Flags: %i, Time: %lli, TimeDiff: %lli\n", buffers_read, sr, flags, timeNs, timeNs - last_time);
-        fwrite(rx_buffer, 2* rx_mtu * sizeof(int16_t), 1, file);
-        last_time = timeNs;
-
-        // Переменная для времени отправки сэмплов относительно текущего приема
-        long long tx_time = timeNs + (4 * 1000 * 1000); // на 4 [мс] в будущее
-
-        // Добавляем время, когда нужно передать блок tx_buff, через N -наносекунд
-        for(size_t i = 0; i < 8; i++)
-        {
-            // Extract byte from tx time
-            uint8_t tx_time_byte = (tx_time >> (i * 8)) & 0xff;
-
-            // Add byte to buffer
-            tx_buff[2 + i] = tx_time_byte << 4;
-        }
-
-        // Send buffer
-        void *tx_buffs[] = {tx_buff};
-        if( (buffers_read == 2) ){
-            printf("buffers_read: %zu\n", buffers_read);
-            flags = SOAPY_SDR_HAS_TIME;
-            int st = SoapySDRDevice_writeStream(sdr, txStream, (const void * const*)tx_buffs, tx_mtu, &flags, tx_time, timeoutUs);
-            if ((size_t)st != tx_mtu)
-            {
-                printf("TX Failed: %i\n", st);
-            }
-        }
+        void *buffs[] = {rx_buffer};
         
+        int sr = SoapySDRDevice_readStream(sdr, rxStream, buffs, rx_mtu, &flags, &timeNs, timeoutUs);
+        
+        if (sr >= 0) {
+            
+            for (int k = 0; k < sr; k++) {
+                int16_t I_val = rx_buffer[2 * k];     
+                int16_t Q_val = rx_buffer[2 * k + 1]; 
+                
+                fprintf(fp_out, "%zu\t%d\t%d\n", total_samples + k, I_val, Q_val);
+            }
+            
+            total_samples += sr;
+            
+            if (i % 50 == 0) {
+                printf("Received packet #%zu/%zu | Samples in buf: %d | Total: %zu\n", 
+                       i+1, iteration_limit, sr, total_samples);
+            }
+        } else if (sr == SOAPY_SDR_TIMEOUT) {
+             continue;
+        } else {
+            printf("Read error code: %d (%s)\n", sr, SoapySDR_errToStr(sr));
+            break;
+        }
     }
-    fclose(file);
 
-    //stop streaming
+    fclose(fp_out);
+    printf("\nReception finished. Saved %zu complex samples to 'rx_data.txt'\n", total_samples);
+
     SoapySDRDevice_deactivateStream(sdr, rxStream, 0, 0);
-    SoapySDRDevice_deactivateStream(sdr, txStream, 0, 0);
-
-    //shutdown the stream
     SoapySDRDevice_closeStream(sdr, rxStream);
-    SoapySDRDevice_closeStream(sdr, txStream);
-
-    //cleanup device handle
     SoapySDRDevice_unmake(sdr);
+    free(rx_buffer);
 
-    // Process each rx buffer, looking for transmitted timestamp
-    for (size_t j = 0; j < channel_count; j++)
-    {
-        printf("Checking channel %zu\n", j);
-        //check_channel(sample_count, channel_count, j, tx_timestamps, rx_timestamps, (uint16_t**)rx_buff, rx_mtu);
-    }
-
-    //all done
-    printf("test complete!\n");
-
+    printf("Receiver stopped cleanly.\n");
     return EXIT_SUCCESS;
 }
