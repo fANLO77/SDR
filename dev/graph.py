@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-name = "build/txdata.pcm"
+name = "txdata.pcm"
 
 data = []
 imag = []

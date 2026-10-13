@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-# Настройки
 FILENAME = "rx_data.txt"
 SAMPLE_RATE = 1e6 
 
@@ -57,19 +56,17 @@ def main():
     plt.figure(figsize=(12, 6))
     t = np.arange(num_samples) / SAMPLE_RATE
     
-    MAX_POINTS_TO_PLOT = 50000 
+    MAX_POINTS_TO_PLOT = 8159232
     if num_samples > MAX_POINTS_TO_PLOT:
         print(f"Предупреждение: Точек много ({num_samples}). Рисуем только первые {MAX_POINTS_TO_PLOT}.")
         t_plot = t[:MAX_POINTS_TO_PLOT]
         amp_plot = amplitude[:MAX_POINTS_TO_PLOT]
-        title_suffix = f"(первые {MAX_POINTS_TO_PLOT})"
     else:
         t_plot = t
         amp_plot = amplitude
-        title_suffix = ""
 
     plt.plot(t_plot, amp_plot, color='blue', linewidth=0.8)
-    plt.title(f'Принятый сигнал: Амплитуда во времени {title_suffix}')
+    plt.title(f'Принятый сигнал: Амплитуда во времени')
     plt.xlabel('Время [сек]')
     plt.ylabel('Амплитуда (ADU)')
     plt.grid(True, linestyle='--', alpha=0.7)
