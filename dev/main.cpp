@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
     if (1) {
         SoapySDRKwargs_set(&args, "uri", "usb:");
     } else {
-        SoapySDRKwargs_set(&args, "uri", "ip:192.168.3.1");
+        SoapySDRKwargs_set(&args, "uri", "ip:192.168.2.1");
     }
 
     SoapySDRKwargs_set(&args, "direct", "1");
@@ -100,49 +100,119 @@ int main(int argc, char *argv[])
 
     const long timeoutUs = 400000;
 
+    
     if (is_tx)
     {
-        
+        using Complex = std::complex<double>;
+
         int16_t tx_buff[2 * mtu];
 
-        const int steps = 8;
-        const int step_len = mtu / steps;
-        const int amp_min = 500;
-        const int amp_max = 8000;
+        const int K = 128;
+        const int16_t AMPLITUDE = 2000;
+        const int SPS = 10;
+        const int N_Upsampled = K * SPS;
+        const int Len_Conv = N_Upsampled + SPS - 1;
 
-        for (int i = 0; i < 2 * (int)mtu; i += 2)
+        int bits[K] = {
+            1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1
+        };
+
+        Complex symbols[K];
+
+        for (int i = 0; i < K; i++)
         {
-            int step = (i / 2) / step_len;
-            int amp = amp_min + (amp_max - amp_min) * step / (steps - 1);
-            tx_buff[i] = amp; 
-            tx_buff[i + 1] = amp; 
+            symbols[i] = (bits[i] == 0)? Complex(1.0, 0.0) : Complex(-1.0, 0.0);
         }
 
-        tx_buff[0] = 0x7fff;
-        tx_buff[1] = 0x7fff;
+        Complex upsampled[N_Upsampled] = {};
+
+        for (int i = 0; i < K; i++)
+        {
+            upsampled[i * SPS] = symbols[i];
+        }
+
+        double h[SPS];
+
+        for (int i = 0; i < SPS; i++)
+        {
+            h[i] = 1.0;
+        }
+
+        Complex conv_result[Len_Conv] = {};
+
+        for (int n = 0; n < Len_Conv; n++)
+        {
+            for (int k = 0; k < N_Upsampled; k++)
+            {
+                int h_index = n - k;
+
+                if (h_index >= 0 && h_index < SPS)
+                {
+                    conv_result[n] += upsampled[k] * h[h_index];
+                }
+            }
+        }
+
+        FILE *fp_tx = fopen("tx_data.txt", "w");
+
+        if (!fp_tx)
+        {
+            perror("Error opening tx_data.txt");
+            return EXIT_FAILURE;
+        }
+
+        fprintf(fp_tx, "# Sample_Index\tI_Value\tQ_Value\n");
 
         printf("Start transmitting...\n");
-        void *tx_buffs[] = {tx_buff};
+
+        void *tx_buffs[] = { tx_buff };
+
+        size_t sample_index = 0;
 
         for (size_t buffers_sent = 0; buffers_sent < 500; buffers_sent++)
         {
+            for (size_t n = 0; n < static_cast<size_t>(mtu); n++)
+            {
+                int idx = sample_index % Len_Conv;
+
+                double I_real = conv_result[idx].real();
+                double Q_real = conv_result[idx].imag();
+
+                tx_buff[2 * n]     = static_cast<int16_t>(I_real * AMPLITUDE);
+                tx_buff[2 * n + 1] = static_cast<int16_t>(Q_real * AMPLITUDE);
+
+                sample_index++;
+            }
+
             int flags = 0;
-            int st = SoapySDRDevice_writeStream(sdr, stream, (const void * const*)tx_buffs,mtu, &flags, 0, timeoutUs);
+
+            int st = SoapySDRDevice_writeStream(sdr, stream, (const void * const *)tx_buffs, mtu, &flags, 0, timeoutUs
+            );
+
             if (st < 0)
             {
                 printf("TX Error, status: %i (%s)\n", st, SoapySDRDevice_lastError());
-            }
-            else if ((size_t)st != mtu)
-            {
-                printf("TX Warning: sent %i of %lu samples\n", st, mtu);
+                break;
             }
 
+            if (st != mtu)
+            {
+                printf("TX Warning: sent %i of %lu samples\n", st, (unsigned long)mtu);
+            }
+            for (int n = 0; n < st; n++)
+            {
+                size_t idx = sample_index - mtu + n;
+                int conv_idx = idx % Len_Conv;
+                fprintf(fp_tx, "%zu\t%.0f\t%.0f\n", idx, conv_result[conv_idx].real(), conv_result[conv_idx].imag());
+            }
             if (buffers_sent % 50 == 0)
             {
                 printf("Transmitted buffer %zu\n", buffers_sent);
             }
         }
 
+        fclose(fp_tx);
+        printf("TX data saved to tx_data.txt\n");
         printf("Stopping transmission...\n");
     }
     else

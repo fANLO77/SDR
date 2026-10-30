@@ -25,7 +25,6 @@ def load_iq_from_txt(filename):
                 
                 if len(parts) >= 3:
                     try:
-                        
                         val_i = int(parts[1])
                         val_q = int(parts[2])
                         i_vals.append(val_i)
@@ -39,6 +38,8 @@ def load_iq_from_txt(filename):
         print("Файл пуст или не удалось распарсить данные.")
         return None, None
     return np.array(i_vals), np.array(q_vals)
+
+
 def main():
     print(f"Загрузка данных из {FILENAME}...")
     I, Q = load_iq_from_txt(FILENAME)   
@@ -51,27 +52,29 @@ def main():
     print(f"Мин/Макс I: {np.min(I)} / {np.max(I)}")
     print(f"Мин/Макс Q: {np.min(Q)} / {np.max(Q)}")
     signal_complex = I + 1j * Q
-    amplitude = np.abs(signal_complex)
 
-    plt.figure(figsize=(12, 6))
     t = np.arange(num_samples) / SAMPLE_RATE
     
     MAX_POINTS_TO_PLOT = 8159232
     if num_samples > MAX_POINTS_TO_PLOT:
         print(f"Предупреждение: Точек много ({num_samples}). Рисуем только первые {MAX_POINTS_TO_PLOT}.")
         t_plot = t[:MAX_POINTS_TO_PLOT]
-        amp_plot = amplitude[:MAX_POINTS_TO_PLOT]
+        i_plot = I[:MAX_POINTS_TO_PLOT]
+        q_plot = Q[:MAX_POINTS_TO_PLOT]
     else:
         t_plot = t
-        amp_plot = amplitude
+        i_plot = I
+        q_plot = Q
 
-    plt.plot(t_plot, amp_plot, color='blue', linewidth=0.8)
-    plt.title(f'Принятый сигнал: Амплитуда во времени')
+    plt.figure(figsize=(12, 6))
+    plt.plot(t_plot, i_plot, color='blue', linewidth=0.8, label='I (реальная часть)')
+    plt.plot(t_plot, q_plot, color='red', linewidth=0.8, label='Q (мнимая часть)', alpha=0.7)
+    plt.title('Принятый сигнал: I и Q во времени')
     plt.xlabel('Время [сек]')
-    plt.ylabel('Амплитуда (ADU)')
+    plt.ylabel('Значение (ADU)')
     plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend()
     plt.tight_layout()
-    
     plt.figure(figsize=(12, 6))
     
     window = np.hamming(num_samples)
@@ -86,6 +89,16 @@ def main():
     plt.ylabel('Мощность [дБ]')
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.xlim(-0.5, 0.5) 
+    plt.tight_layout()
+
+    plt.figure(figsize=(12, 6))
+    plt.scatter(I, Q, color='green', linewidth=0.8)
+    plt.title('Диаграмма созвездия (I vs Q)')
+    plt.xlabel('I (реальная часть)')
+    plt.ylabel('Q (мнимая часть)')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.axis('equal')
+    plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":

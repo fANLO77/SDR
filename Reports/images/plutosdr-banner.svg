@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 260" role="img" aria-labelledby="title desc">
+  <title id="title">PlutoSDR — SDR Laboratory</title>
+  <desc id="desc">Тёмный баннер с радиоволнами и подписью проекта</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1020"/>
+      <stop offset="0.55" stop-color="#111c3d"/>
+      <stop offset="1" stop-color="#44206d"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#39d4ff"/>
+      <stop offset="1" stop-color="#c084fc"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="1200" height="260" rx="22" fill="url(#background)"/>
+  <g fill="none" stroke="url(#wave)" stroke-linecap="round" filter="url(#glow)">
+    <path d="M730 130c34-92 68 92 102 0s68-92 102 0 68 92 102 0 68-92 102 0" stroke-width="5" opacity=".96"/>
+    <path d="M730 130c34-48 68 48 102 0s68-48 102 0 68 48 102 0 68-48 102 0" stroke-width="3" opacity=".7"/>
+  </g>
+  <g transform="translate(78 67)" fill="none" stroke="#56d9ff" stroke-linecap="round">
+    <circle cx="55" cy="63" r="10" fill="#56d9ff" stroke="none"/>
+    <path d="M31 39a34 34 0 0 0 0 48M79 39a34 34 0 0 1 0 48M15 23a57 57 0 0 0 0 80M95 23a57 57 0 0 1 0 80" stroke-width="7"/>
+  </g>
+  <text x="230" y="115" fill="#f8fafc" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700" letter-spacing="1">PLUTO SDR</text>
+  <text x="234" y="159" fill="#a5b4fc" font-family="Arial, Helvetica, sans-serif" font-size="22" letter-spacing="5">SOFTWARE-DEFINED RADIO LAB</text>
+  <rect x="234" y="185" width="188" height="4" rx="2" fill="#56d9ff"/>
+</svg>
